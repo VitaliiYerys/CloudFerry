@@ -169,6 +169,35 @@ class ResourceMigrationTests(functional_test.FunctionalTest):
                                                 resource_name='security_group',
                                                 parameter='description')
 
+    def test_image_members(self):
+
+        def member_list_collector(_images, client, auth_client):
+            _members = []
+            for img in _images:
+                members = client.image_members.list(img['id'])
+                if len(members) > 0:
+                    mbr_list = []
+                    for mem in members:
+                        mem_id = mem.__dict__['_info']['member_id']
+                        mem_name = auth_client.tenants.find(id=mem_id).name
+                        mbr_list.append(mem_name)
+                    _members.append({img['name']: sorted(mbr_list)})
+            return sorted(_members)
+
+        src_images = self.src_cloud.glanceclient.images.list()
+        dst_images_gen = self.dst_cloud.glanceclient.images.list()
+        dst_images = [x.__dict__ for x in dst_images_gen]
+        filtering_data = self.filtering_utils.filter_images(src_images)
+        src_images = filtering_data[0]
+
+        src_members = member_list_collector(src_images,
+                                            self.src_cloud.glanceclient,
+                                            self.src_cloud.keystoneclient)
+        dst_members = member_list_collector(dst_images,
+                                            self.dst_cloud.glanceclient,
+                                            self.dst_cloud.keystoneclient)
+        self.assertEqual(src_members, dst_members)
+
     def test_migrate_glance_images(self):
         src_images = self.filter_resources('images')
         dst_images_gen = self.dst_cloud.glanceclient.images.list()
